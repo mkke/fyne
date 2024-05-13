@@ -16,11 +16,11 @@ import (
 //
 // Since: 1.4
 type TabItem struct {
-	Text    string
-	Icon    fyne.Resource
-	Content fyne.CanvasObject
-
-	button *tabButton
+	Text     string
+	Icon     fyne.Resource
+	Content  fyne.CanvasObject
+	OnClosed func()
+	button   *tabButton
 }
 
 // Disabled returns whether or not the TabItem is disabled.

@@ -190,6 +190,9 @@ func (t *DocTabs) close(item *TabItem) {
 		if f := t.OnClosed; f != nil {
 			f(item)
 		}
+		if f := item.OnClosed; f != nil {
+			f()
+		}
 	}
 }
 
