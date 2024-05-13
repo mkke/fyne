@@ -42,6 +42,10 @@ const (
 	ButtonIconLeadingText ButtonIconPlacement = iota
 	// ButtonIconTrailingText aligns the icon on the trailing edge of the text.
 	ButtonIconTrailingText
+	// ButtonIconTopText aligns the icon on the top edge of the text.
+	ButtonIconTopText
+	// ButtonIconBottomText aligns the icon on the top edge of the text.
+	ButtonIconBottomText
 )
 
 var _ fyne.Focusable = (*Button)(nil)
@@ -57,6 +61,7 @@ type Button struct {
 	Importance    Importance
 	Alignment     ButtonAlign
 	IconPlacement ButtonIconPlacement
+	TextStyle     RichTextStyle
 
 	OnTapped func() `json:"-"`
 
@@ -68,8 +73,9 @@ type Button struct {
 // NewButton creates a new button widget with the set label and tap handler
 func NewButton(label string, tapped func()) *Button {
 	button := &Button{
-		Text:     label,
-		OnTapped: tapped,
+		Text:      label,
+		TextStyle: RichTextStyleStrong,
+		OnTapped:  tapped,
 	}
 
 	button.ExtendBaseWidget(button)
@@ -79,9 +85,10 @@ func NewButton(label string, tapped func()) *Button {
 // NewButtonWithIcon creates a new button widget with the specified label, themed icon and tap handler
 func NewButtonWithIcon(label string, icon fyne.Resource, tapped func()) *Button {
 	button := &Button{
-		Text:     label,
-		Icon:     icon,
-		OnTapped: tapped,
+		Text:      label,
+		TextStyle: RichTextStyleStrong,
+		Icon:      icon,
+		OnTapped:  tapped,
 	}
 
 	button.ExtendBaseWidget(button)
@@ -91,7 +98,7 @@ func NewButtonWithIcon(label string, icon fyne.Resource, tapped func()) *Button 
 // CreateRenderer is a private method to Fyne which links this widget to its renderer
 func (b *Button) CreateRenderer() fyne.WidgetRenderer {
 	b.ExtendBaseWidget(b)
-	seg := &TextSegment{Text: b.Text, Style: RichTextStyleStrong}
+	seg := &TextSegment{Text: b.Text, Style: b.TextStyle}
 	seg.Style.Alignment = fyne.TextAlignCenter
 	text := NewRichText(seg)
 	text.inset = fyne.NewSquareSize(theme.InnerPadding())
@@ -112,7 +119,12 @@ func (b *Button) CreateRenderer() fyne.WidgetRenderer {
 		tapBG:        tapBG,
 		button:       b,
 		label:        text,
-		layout:       layout.NewHBoxLayout(),
+	}
+	switch b.IconPlacement {
+	case ButtonIconLeadingText, ButtonIconTrailingText:
+		r.layout = layout.NewHBoxLayout()
+	default:
+		r.layout = layout.NewVBoxLayout()
 	}
 	r.updateIconAndText()
 	r.applyTheme()
@@ -297,16 +309,23 @@ func (r *buttonRenderer) Layout(size fyne.Size) {
 		if hasIcon {
 			// Both
 			var objects []fyne.CanvasObject
-			if r.button.IconPlacement == ButtonIconLeadingText {
+			switch r.button.IconPlacement {
+			case ButtonIconLeadingText, ButtonIconTopText:
 				objects = append(objects, r.icon, r.label)
-			} else {
+			case ButtonIconTrailingText, ButtonIconBottomText:
 				objects = append(objects, r.label, r.icon)
 			}
 			r.icon.SetMinSize(iconSize)
 			min := r.layout.MinSize(objects)
 			r.layout.Layout(objects, min)
 			pos := alignedPosition(r.button.Alignment, padding, min, size)
-			labelOff := (min.Height - labelSize.Height) / 2
+			var labelOff float32
+			switch r.button.IconPlacement {
+			case ButtonIconLeadingText, ButtonIconTrailingText:
+				labelOff = (min.Height - labelSize.Height) / 2
+			case ButtonIconTopText, ButtonIconBottomText:
+				labelOff = 0
+			}
 			r.label.Move(r.label.Position().Add(pos).AddXY(0, labelOff))
 			r.icon.Move(r.icon.Position().Add(pos))
 		} else {
@@ -329,16 +348,30 @@ func (r *buttonRenderer) MinSize() (size fyne.Size) {
 	hasLabel := r.label.Segments[0].(*TextSegment).Text != ""
 	iconSize := fyne.NewSquareSize(theme.IconInlineSize())
 	labelSize := r.label.MinSize()
-	if hasLabel {
-		size.Width = labelSize.Width
-	}
-	if hasIcon {
+	switch r.button.IconPlacement {
+	case ButtonIconLeadingText, ButtonIconTrailingText:
 		if hasLabel {
-			size.Width += theme.Padding()
+			size.Width = labelSize.Width
 		}
-		size.Width += iconSize.Width
+		if hasIcon {
+			if hasLabel {
+				size.Width += theme.Padding()
+			}
+			size.Width += iconSize.Width
+		}
+		size.Height = fyne.Max(labelSize.Height, iconSize.Height)
+	case ButtonIconTopText, ButtonIconBottomText:
+		if hasLabel {
+			size.Height = labelSize.Height
+		}
+		if hasIcon {
+			if hasLabel {
+				size.Height += theme.Padding()
+			}
+			size.Height += iconSize.Height
+		}
+		size.Width = fyne.Max(labelSize.Width, iconSize.Width)
 	}
-	size.Height = fyne.Max(labelSize.Height, iconSize.Height)
 	size = size.Add(r.padding())
 	return
 }
